@@ -4,7 +4,14 @@ Sistema completo de **Ponto de Venda (PDV)** especializado em bilheteria física
 
 ---
 
-## 🚀 Como Executar
+## 🌐 Aplicação Online (Produção)
+
+Acesse a demonstração online em produção:  
+👉 **[https://showticket.onrender.com/](https://showticket.onrender.com/)**
+
+---
+
+## 🚀 Como Executar Localmente
 
 ### Pré-requisitos
 - **Java 21 LTS**
