@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: showticket-pdv
+    env: docker
+    plan: free
+    region: oregon
+    dockerfilePath: Dockerfile
+    healthCheckPath: /api/events
+    envVars:
+      - key: PORT
+        value: 8080
