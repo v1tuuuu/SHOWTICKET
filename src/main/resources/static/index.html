@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShowTicket PDV - Ponto de Venda de Ingressos</title>
+    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+    <!-- Topbar / Header do PDV -->
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-icon">🎟️</span>
+            <div>
+                <h1 class="brand-title">SHOWTICKET <span>PDV</span></h1>
+                <span class="brand-subtitle">Bilheteria & Ponto de Venda de Shows</span>
+            </div>
+        </div>
+
+        <div class="session-info" id="sessionInfoBar">
+            <div class="status-indicator" id="statusBadge">
+                <span class="dot"></span>
+                <span id="sessionStatusText">VERIFICANDO CAIXA...</span>
+            </div>
+            <div class="session-meta">
+                <span id="metaTerminal">Terminal: GUICHE-01</span>
+                <span class="sep">|</span>
+                <span id="metaOperator">Operador: --</span>
+                <span class="sep">|</span>
+                <span id="metaFloat">Fundo: R$ 0,00</span>
+            </div>
+        </div>
+
+        <div class="clock-box" id="clockDisplay">00:00:00</div>
+    </header>
+
+    <!-- Barra de Atalhos F-Keys -->
+    <nav class="hotkeys-bar">
+        <button class="hotkey-btn active" onclick="switchTab('venda')"><kbd>F2</kbd> Venda</button>
+        <button class="hotkey-btn" onclick="openCashDrawer()"><kbd>F7</kbd> Gestão Caixa</button>
+        <button class="hotkey-btn" onclick="openPaymentModal()"><kbd>F8</kbd> Pagamento</button>
+        <button class="hotkey-btn" onclick="switchTab('portaria')"><kbd>F12</kbd> Portaria / Catraca</button>
+    </nav>
+
+    <!-- Layout Principal -->
+    <main class="main-container">
+        <!-- LADO ESQUERDO: Catálogo / Operação -->
+        <section class="catalog-section" id="vendaTab">
+            <!-- Eventos -->
+            <div class="section-title-row">
+                <h2>Selecione o Evento / Show</h2>
+                <button class="btn-refresh" onclick="loadEvents()">Atualizar Dados</button>
+            </div>
+            <div class="events-grid" id="eventsGrid">
+                <!-- Renderizado via JS -->
+            </div>
+
+            <!-- Setores e Ingressos do Evento Selecionado -->
+            <div class="event-details-panel" id="eventDetailsPanel" style="display: none;">
+                <div class="event-header-info">
+                    <div>
+                        <h3 id="selectedEventName">Nome do Evento</h3>
+                        <p id="selectedEventMeta">Data | Local | Classificação</p>
+                    </div>
+                </div>
+
+                <div class="selection-flow">
+                    <!-- 1. Escolha do Setor -->
+                    <div class="flow-step">
+                        <label class="step-label">1. Setor & Lote Disponível</label>
+                        <div class="sectors-grid" id="sectorsGrid">
+                            <!-- Injetado via JS -->
+                        </div>
+                    </div>
+
+                    <!-- 2. Escolha da Modalidade -->
+                    <div class="flow-step" id="ticketTypeStep">
+                        <label class="step-label">2. Modalidade do Ingresso</label>
+                        <div class="ticket-types-grid" id="ticketTypesGrid">
+                            <!-- Injetado via JS -->
+                        </div>
+                    </div>
+
+                    <!-- 3. Dados do Titular (Opcional / Obrigatório p/ Meia) -->
+                    <div class="flow-step" id="holderStep">
+                        <label class="step-label">3. Dados do Portador & Quantidade</label>
+                        <div class="holder-form-row">
+                            <div class="form-group">
+                                <label for="holderName">Nome do Titular:</label>
+                                <input type="text" id="holderName" placeholder="Ex: Carlos Eduardo Silva">
+                            </div>
+                            <div class="form-group" id="docGroup">
+                                <label for="holderDoc">Documento (RG/CPF/Carteira Estudante):</label>
+                                <input type="text" id="holderDoc" placeholder="Ex: 123.456.789-00 ou DNE-001">
+                            </div>
+                            <div class="form-group qty-group">
+                                <label for="ticketQty">Qtd:</label>
+                                <div class="qty-control">
+                                    <button type="button" onclick="adjustQty(-1)">-</button>
+                                    <input type="number" id="ticketQty" value="1" min="1" max="10">
+                                    <button type="button" onclick="adjustQty(1)">+</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="add-cart-row">
+                            <div class="calculated-price">
+                                Preço Unitário: <strong id="previewUnitPrice">R$ 0,00</strong>
+                            </div>
+                            <button class="btn-primary" onclick="addToCart()">+ Adicionar ao Pedido</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABA PORTARIA / CHECK-IN -->
+        <section class="portaria-section" id="portariaTab" style="display: none;">
+            <div class="portaria-card">
+                <h2>Validação de Acesso / Portaria de Show</h2>
+                <p>Aponte o leitor de código de barras / QR Code ou digite o código do ingresso</p>
+                <div class="checkin-input-box">
+                    <input type="text" id="checkInInput" placeholder="Escaneie o QR Code ou digite (ex: TKT-ROCK-...)">
+                    <button class="btn-primary" onclick="submitCheckIn()">Validar Entrada</button>
+                </div>
+
+                <div class="checkin-result" id="checkInResult" style="display: none;">
+                    <div class="result-badge" id="checkInBadge">LIBERADO</div>
+                    <h3 id="checkInMsg">Acesso Autorizado</h3>
+                    <div class="checkin-details" id="checkInDetails"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- LADO DIREITO: Carrinho / Checkout -->
+        <aside class="cart-section">
+            <div class="cart-header">
+                <h3>Resumo do Pedido</h3>
+                <button class="btn-clear" onclick="clearCart()">Limpar (F2)</button>
+            </div>
+
+            <div class="cart-items" id="cartItemsList">
+                <div class="cart-empty">
+                    <span>🛒</span>
+                    <p>Nenhum ingresso selecionado</p>
+                    <small>Escolha um show e adicione ingressos</small>
+                </div>
+            </div>
+
+            <div class="cart-totals">
+                <div class="total-row">
+                    <span>Subtotal:</span>
+                    <span id="cartSubtotal">R$ 0,00</span>
+                </div>
+                <div class="total-row">
+                    <span>Desconto:</span>
+                    <span id="cartDiscount">R$ 0,00</span>
+                </div>
+                <div class="total-row grand-total">
+                    <span>TOTAL:</span>
+                    <span id="cartGrandTotal">R$ 0,00</span>
+                </div>
+                <button class="btn-checkout" id="btnCheckout" onclick="openPaymentModal()" disabled>
+                    PAGAMENTO & FINALIZAR (F8)
+                </button>
+            </div>
+        </aside>
+    </main>
+
+    <!-- MODAL: ABERTURA DE CAIXA -->
+    <div class="modal-overlay" id="openCashModal" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Abertura de Caixa do PDV</h3>
+                <button class="modal-close" onclick="closeOpenCashModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Nenhum caixa está aberto para este terminal. Informe os dados para iniciar o turno:</p>
+                <div class="form-group">
+                    <label>Terminal / Guichê:</label>
+                    <input type="text" id="openTerminalId" value="TERMINAL-GUICHE-01">
+                </div>
+                <div class="form-group">
+                    <label>ID do Operador:</label>
+                    <input type="text" id="openOperatorId" value="usr_vitor">
+                </div>
+                <div class="form-group">
+                    <label>Nome do Operador:</label>
+                    <input type="text" id="openOperatorName" value="Vitor Oliveira">
+                </div>
+                <div class="form-group">
+                    <label>Fundo de Troco Inicial (R$):</label>
+                    <input type="number" step="0.01" id="openInitialFloat" value="200.00">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closeOpenCashModal()">Cancelar</button>
+                <button class="btn-primary" onclick="confirmOpenCash()">Abrir Caixa Agora</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: GESTÃO DO CAIXA (F7) -->
+    <div class="modal-overlay" id="cashDrawerModal" style="display: none;">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <h3>Gestão do Caixa & Fechamento (F7)</h3>
+                <button class="modal-close" onclick="closeCashDrawer()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="cash-summary-grid" id="cashSummaryCards">
+                    <!-- Resumo preenchido via JS -->
+                </div>
+
+                <div class="cash-actions-row">
+                    <div class="movement-box">
+                        <h4>Movimentação Avulsa (Sangria / Suprimento)</h4>
+                        <div class="form-row">
+                            <select id="movType">
+                                <option value="SANGRIA">Sangria (Retirada)</option>
+                                <option value="SUPRIMENTO">Suprimento (Aporte)</option>
+                            </select>
+                            <input type="number" step="0.01" id="movAmount" placeholder="Valor (R$)">
+                            <input type="text" id="movReason" placeholder="Motivo">
+                            <button class="btn-secondary" onclick="submitMovement()">Lançar</button>
+                        </div>
+                    </div>
+
+                    <div class="close-box">
+                        <h4>Fechamento de Caixa</h4>
+                        <div class="form-row">
+                            <input type="number" step="0.01" id="closeCashCount" placeholder="Valor em Dinheiro contado na gaveta">
+                            <button class="btn-danger" onclick="submitCloseCash()">Fechar Caixa e Emitir Relatório</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: PAGAMENTO (F8) -->
+    <div class="modal-overlay" id="paymentModal" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Finalizar Venda - Pagamento</h3>
+                <button class="modal-close" onclick="closePaymentModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="payment-total-banner">
+                    Total a Pagar: <strong id="payModalTotal">R$ 0,00</strong>
+                </div>
+
+                <div class="payment-methods-tabs">
+                    <button class="pay-method-btn active" onclick="selectPayMethod('CASH')">💵 Dinheiro</button>
+                    <button class="pay-method-btn" onclick="selectPayMethod('PIX')">📱 PIX</button>
+                    <button class="pay-method-btn" onclick="selectPayMethod('CREDIT_CARD')">💳 Crédito</button>
+                    <button class="pay-method-btn" onclick="selectPayMethod('DEBIT_CARD')">💳 Débito</button>
+                </div>
+
+                <!-- Painel Dinheiro -->
+                <div class="pay-panel" id="panelCASH">
+                    <div class="form-group">
+                        <label>Valor Entregue pelo Cliente (R$):</label>
+                        <input type="number" step="0.01" id="cashTendered" oninput="calculateChange()">
+                    </div>
+                    <div class="change-display">
+                        Troco a Devolver: <strong id="cashChangeDisplay">R$ 0,00</strong>
+                    </div>
+                </div>
+
+                <!-- Painel PIX -->
+                <div class="pay-panel" id="panelPIX" style="display: none;">
+                    <div class="pix-box">
+                        <p>Chave PIX Dinâmica Gerada para este Pedido</p>
+                        <div class="pix-qr-placeholder">📱 QR Code PIX Pronto</div>
+                        <small>Aguardando confirmação bancária...</small>
+                    </div>
+                </div>
+
+                <!-- Painel Cartões -->
+                <div class="pay-panel" id="panelCARD" style="display: none;">
+                    <p>Insira ou aproxime o cartão na maquininha TEF/POS integrada.</p>
+                </div>
+
+                <div class="form-group customer-box">
+                    <label>CPF do Cliente na Nota (Opcional):</label>
+                    <input type="text" id="custCpfInput" placeholder="000.000.000-00">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closePaymentModal()">Voltar</button>
+                <button class="btn-primary" onclick="confirmSale()">CONFIRMAR VENDA & EMITIR (F10)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: IMPRESSÃO DE INGRESSO TÉRMICO -->
+    <div class="modal-overlay" id="ticketPrintModal" style="display: none;">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <h3>🎟️ Ingresso(s) Emitido(s) com Sucesso!</h3>
+                <button class="modal-close" onclick="closePrintModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="ticket-preview-container" id="ticketsPrintContainer">
+                    <!-- Cards dos ingressos térmicos renderizados aqui -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="window.print()">🖨️ Imprimir na Impressora Térmica</button>
+                <button class="btn-primary" onclick="finishAndNewSale()">Novo Atendimento (F2)</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="./app.js"></script>
+</body>
+</html>
